@@ -1,6 +1,5 @@
 #![allow(unused)]
 
-
 /// A -> Rock
 /// B -> Paper
 /// C -> Scissors
@@ -33,7 +32,10 @@ struct Round {
 
 impl Round {
     pub fn new(left: HandShape, right: HandShape) -> Round {
-        Round { enemy: left, myself: right }
+        Round {
+            enemy: left,
+            myself: right,
+        }
     }
 
     pub fn from_line(line: &str) -> Option<Round> {
@@ -43,7 +45,10 @@ impl Round {
         chars.next(); // skip space
         let right = chars.next().and_then(HandShape::from_char)?;
 
-        Some(Round { enemy: left, myself: right })
+        Some(Round {
+            enemy: left,
+            myself: right,
+        })
     }
 
     pub fn score(&self) -> u32 {
@@ -53,7 +58,9 @@ impl Round {
     fn won(&self) -> bool {
         matches!(
             (&self.enemy, &self.myself),
-            (HandShape::Rock, HandShape::Paper) | (HandShape::Paper, HandShape::Scissors) | (HandShape::Scissors, HandShape::Rock)
+            (HandShape::Rock, HandShape::Paper)
+                | (HandShape::Paper, HandShape::Scissors)
+                | (HandShape::Scissors, HandShape::Rock)
         )
     }
 
