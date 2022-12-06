@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 pub fn count_calories(content: &str) -> u64 {
     let items_per_elve = content.split("\n\n");
     let calories_per_elve =

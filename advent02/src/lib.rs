@@ -1,3 +1,6 @@
+#![allow(unused)]
+
+
 /// A -> Rock
 /// B -> Paper
 /// C -> Scissors
