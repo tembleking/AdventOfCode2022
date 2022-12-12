@@ -1,4 +1,4 @@
-#![allow(unused)]
+#![deny(unused)]
 
 /// A -> Rock
 /// B -> Paper
@@ -22,6 +22,30 @@ impl HandShape {
             _ => None,
         }
     }
+
+    fn shape_to_lose_against(&self) -> HandShape {
+        match self {
+            HandShape::Rock => HandShape::Scissors,
+            HandShape::Paper => HandShape::Rock,
+            HandShape::Scissors => HandShape::Paper,
+        }
+    }
+
+    fn shape_to_win_against(&self) -> HandShape {
+        match self {
+            HandShape::Rock => HandShape::Paper,
+            HandShape::Paper => HandShape::Scissors,
+            HandShape::Scissors => HandShape::Rock,
+        }
+    }
+
+    fn shape_to_draw_against(&self) -> HandShape {
+        match self {
+            HandShape::Rock => HandShape::Rock,
+            HandShape::Paper => HandShape::Paper,
+            HandShape::Scissors => HandShape::Scissors,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -31,6 +55,7 @@ struct Round {
 }
 
 impl Round {
+    #[cfg(test)]
     pub fn new(left: HandShape, right: HandShape) -> Round {
         Round {
             enemy: left,
@@ -44,6 +69,24 @@ impl Round {
         let left = chars.next().and_then(HandShape::from_char)?;
         chars.next(); // skip space
         let right = chars.next().and_then(HandShape::from_char)?;
+
+        Some(Round {
+            enemy: left,
+            myself: right,
+        })
+    }
+
+    pub fn from_line_with_end_result(line: &str) -> Option<Round> {
+        let mut chars = line.chars();
+
+        let left = chars.next().and_then(HandShape::from_char)?;
+        chars.next(); // skip space
+        let right = match chars.next() {
+            Some('X') => left.shape_to_lose_against(),
+            Some('Y') => left.shape_to_draw_against(),
+            Some('Z') => left.shape_to_win_against(),
+            _ => return None,
+        };
 
         Some(Round {
             enemy: left,
@@ -91,7 +134,7 @@ impl Round {
     }
 }
 
-struct Strategy {
+pub struct Strategy {
     rounds: Vec<Round>,
 }
 
@@ -105,12 +148,17 @@ impl Strategy {
         Strategy { rounds }
     }
 
-    pub fn rounds(&self) -> usize {
-        self.rounds.len()
+    pub fn new_with_end_result(input: &str) -> Self {
+        let rounds = input
+            .lines()
+            .filter_map(Round::from_line_with_end_result)
+            .collect::<Vec<Round>>();
+
+        Strategy { rounds }
     }
 
-    pub fn round(&self, round: usize) -> Option<&Round> {
-        self.rounds.get(round)
+    pub fn rounds(&self) -> usize {
+        self.rounds.len()
     }
 
     pub fn score(&self) -> u32 {
@@ -128,7 +176,7 @@ mod tests {
 
         assert_eq!(strategy.rounds(), 3);
         assert_eq!(
-            strategy.round(0),
+            strategy.rounds.get(0),
             Some(&Round::new(HandShape::Rock, HandShape::Paper))
         );
         assert_eq!(strategy.score(), 15);
@@ -181,6 +229,24 @@ mod tests {
             .collect::<Vec<u32>>();
 
         assert_eq!(rounds, vec![4, 8, 3, 1, 5, 9, 7, 2, 6]);
+    }
+
+    #[test]
+    fn it_returns_the_score_with_strategy_ending() {
+        let strategy = Strategy::new_with_end_result(input());
+
+        let rounds = &strategy.rounds;
+        assert_eq!(rounds[0].enemy, HandShape::Rock);
+        assert_eq!(rounds[0].myself, HandShape::Rock);
+        assert_eq!(rounds[0].score(), 4);
+        assert_eq!(rounds[1].enemy, HandShape::Paper);
+        assert_eq!(rounds[1].myself, HandShape::Rock);
+        assert_eq!(rounds[1].score(), 1);
+        assert_eq!(rounds[2].enemy, HandShape::Scissors);
+        assert_eq!(rounds[2].myself, HandShape::Rock);
+        assert_eq!(rounds[2].score(), 7);
+
+        assert_eq!(strategy.score(), 12);
     }
 
     fn input() -> &'static str {
