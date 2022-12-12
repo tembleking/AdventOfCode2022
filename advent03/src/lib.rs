@@ -1,9 +1,10 @@
-#![allow(unused)]
+#![deny(unused)]
 
 use std::collections::HashSet;
+use std::slice::Chunks;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-struct Item(char);
+pub struct Item(char);
 
 impl Item {
     pub fn priority(&self) -> u8 {
@@ -31,13 +32,15 @@ impl From<&Item> for char {
     }
 }
 
-struct Rucksack {
+pub struct Rucksack {
     left: HashSet<Item>,
     right: HashSet<Item>,
 }
 
-impl Rucksack {
-    pub fn from_str(input: &str) -> Result<Rucksack, String> {
+impl TryFrom<&str> for Rucksack {
+    type Error = String;
+
+    fn try_from(input: &str) -> Result<Self, Self::Error> {
         if input.len() % 2 == 1 {
             return Err(format!(
                 "Input length must be even, but was {}",
@@ -52,17 +55,74 @@ impl Rucksack {
             right: right.chars().map(Item::from).collect(),
         })
     }
+}
 
-    pub fn left(&self) -> HashSet<char> {
+impl Rucksack {
+    fn left(&self) -> HashSet<char> {
         self.left.iter().map(char::from).collect()
     }
 
-    pub fn right(&self) -> HashSet<char> {
+    fn right(&self) -> HashSet<char> {
         self.right.iter().map(char::from).collect()
     }
 
     pub fn find_duplicated_element(&self) -> Option<Item> {
         self.left.intersection(&self.right).next().cloned()
+    }
+}
+
+pub struct ElveGroup {
+    rucksacks: Vec<Rucksack>,
+}
+
+impl TryFrom<&str> for ElveGroup {
+    type Error = String;
+
+    fn try_from(input: &str) -> Result<Self, Self::Error> {
+        let rucksacks = input
+            .lines()
+            .map(Rucksack::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(ElveGroup { rucksacks })
+    }
+}
+
+impl ElveGroup {
+    pub fn duplicated_element_per_group_of(&self, num: usize) -> DuplicatedElementIter {
+        DuplicatedElementIter {
+            iter: self.rucksacks.chunks(num),
+        }
+    }
+}
+
+pub struct DuplicatedElementIter<'a> {
+    iter: Chunks<'a, Rucksack>,
+}
+
+impl<'a> Iterator for DuplicatedElementIter<'a> {
+    type Item = Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let chunk = self.iter.next()?;
+        let mut set = Vec::new();
+
+        for rucksack in chunk {
+            let rucksack_set = rucksack
+                .left()
+                .union(&rucksack.right())
+                .cloned()
+                .map(Item::from)
+                .collect::<HashSet<Item>>();
+            set.push(rucksack_set);
+        }
+
+        let mut intersection = set[0].clone();
+        for rucksack_set in set {
+            intersection = intersection.intersection(&rucksack_set).cloned().collect();
+        }
+
+        intersection.iter().next().cloned()
     }
 }
 
@@ -74,7 +134,7 @@ mod tests {
     #[test]
     fn it_retrieves_the_set_of_elements_of_each_rucksack() {
         let input = "vJrwpWtwJgWrhcsFMMfFFhFp";
-        let rucksack = Rucksack::from_str(input).unwrap();
+        let rucksack = Rucksack::try_from(input).unwrap();
 
         assert_eq!(
             rucksack.left(),
@@ -89,7 +149,7 @@ mod tests {
     #[test]
     fn it_retrieves_the_duplicated_element_in_the_rucksack() {
         let input = "vJrwpWtwJgWrhcsFMMfFFhFp";
-        let rucksack = Rucksack::from_str(input).unwrap();
+        let rucksack = Rucksack::try_from(input).unwrap();
 
         assert_eq!(rucksack.find_duplicated_element(), Some(Item('p')));
     }
@@ -108,7 +168,7 @@ mod tests {
     #[test]
     fn it_retrieves_the_priority_of_the_rucksack() {
         let input = "vJrwpWtwJgWrhcsFMMfFFhFp";
-        let rucksack = Rucksack::from_str(input).unwrap();
+        let rucksack = Rucksack::try_from(input).unwrap();
         let duplicated = rucksack.find_duplicated_element().unwrap();
 
         assert_eq!(duplicated.priority(), 16);
@@ -118,7 +178,7 @@ mod tests {
     fn it_retrieves_the_priority_sum_of_all_rucksacks() {
         let rucksacks = input()
             .lines()
-            .flat_map(Rucksack::from_str)
+            .flat_map(Rucksack::try_from)
             .collect::<Vec<Rucksack>>();
 
         let duplicated_elements = rucksacks.iter().flat_map(Rucksack::find_duplicated_element);
