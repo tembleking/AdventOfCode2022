@@ -3,12 +3,13 @@
 use std::collections::VecDeque;
 
 pub fn marker_position(mut input: impl Iterator<Item = char>) -> Option<usize> {
-    let mut found_chars = VecDeque::with_capacity(4);
+    let start_message = 14;
+    let mut found_chars = VecDeque::with_capacity(start_message);
 
     for (step, c) in input.enumerate() {
-        if found_chars.len() < 4 {
+        if found_chars.len() < start_message {
             found_chars.push_back(c);
-            if found_chars.len() == 4 && all_chars_are_different(&found_chars) {
+            if found_chars.len() == start_message && all_chars_are_different(&found_chars) {
                 return Some(step + 1);
             }
             continue;
