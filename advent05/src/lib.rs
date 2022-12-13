@@ -2,17 +2,21 @@
 
 use std::collections::VecDeque;
 
-struct Ship {
+pub struct Ship {
     stacks: Vec<VecDeque<char>>,
 }
 
-impl Ship {
-    pub fn from_str(input: &str) -> Result<Ship, String> {
-        let stacks = Self::stacks_from_str(input)?;
+impl TryFrom<&str> for Ship {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let stacks = Self::stacks_from_str(value)?;
         Ok(Ship { stacks })
     }
+}
 
-    pub fn stacks(&self) -> &Vec<VecDeque<char>> {
+impl Ship {
+    fn stacks(&self) -> &Vec<VecDeque<char>> {
         &self.stacks
     }
 
@@ -117,24 +121,28 @@ fn instruction_from_str(line: &str) -> Result<Instruction, String> {
     }
 }
 
-struct CargoCrane {
+pub struct CargoCrane {
     ship: Ship,
     instructions: Vec<Instruction>,
 }
 
-impl CargoCrane {
-    pub fn from_str(input: &str) -> Result<CargoCrane, String> {
-        let ship = Ship::from_str(input)?;
-        let instructions = instructions_from_str(input)?;
+impl TryFrom<&str> for CargoCrane {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let ship = Ship::try_from(value)?;
+        let instructions = instructions_from_str(value)?;
 
         Ok(CargoCrane { ship, instructions })
     }
+}
 
+impl CargoCrane {
     pub fn ship(&self) -> &Ship {
         &self.ship
     }
 
-    pub fn execute_instructions(&mut self) -> Result<(), String> {
+    pub fn execute_instructions_crate_mover_9000(&mut self) -> Result<(), String> {
         for instruction in self.instructions.iter() {
             match instruction {
                 Instruction::Move { count, from, to } => {
@@ -153,6 +161,26 @@ impl CargoCrane {
         }
         Ok(())
     }
+
+    pub fn execute_instructions_crate_mover_9001(&mut self) -> Result<(), String> {
+        for instruction in self.instructions.iter() {
+            match instruction {
+                Instruction::Move { count, from, to } => {
+                    let crate_chars = {
+                        let from_stack =
+                            self.ship.stacks.get_mut(*from - 1).ok_or("No from stack")?;
+                        from_stack
+                            .drain(from_stack.len() - *count..)
+                            .collect::<VecDeque<_>>()
+                    };
+
+                    let to_stack = self.ship.stacks.get_mut(*to - 1).ok_or("No to stack")?;
+                    to_stack.extend(crate_chars);
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -161,7 +189,7 @@ mod tests {
 
     #[test]
     fn it_loads_the_stacks_from_the_input() {
-        let ship = Ship::from_str(input()).unwrap();
+        let ship = Ship::try_from(input()).unwrap();
 
         assert_eq!(ship.stacks().len(), 3);
         assert_eq!(ship.stacks()[0], VecDeque::from(['Z', 'N']));
@@ -225,9 +253,9 @@ mod tests {
 
     #[test]
     fn it_executes_the_instructions_on_the_ship() {
-        let mut cargo_crane = CargoCrane::from_str(input()).unwrap();
+        let mut cargo_crane = CargoCrane::try_from(input()).unwrap();
 
-        cargo_crane.execute_instructions().unwrap();
+        cargo_crane.execute_instructions_crate_mover_9000().unwrap();
         let ship = cargo_crane.ship();
 
         assert_eq!(ship.stacks().len(), 3);
@@ -238,13 +266,24 @@ mod tests {
 
     #[test]
     fn it_gets_the_top_elements_from_the_ship() {
-        let mut cargo_crane = CargoCrane::from_str(input()).unwrap();
+        let mut cargo_crane = CargoCrane::try_from(input()).unwrap();
         let ship_before = cargo_crane.ship();
         assert_eq!(ship_before.crates_message_to_elves(), "NDP");
 
-        cargo_crane.execute_instructions().unwrap();
+        cargo_crane.execute_instructions_crate_mover_9000().unwrap();
         let ship_after = cargo_crane.ship();
         assert_eq!(ship_after.crates_message_to_elves(), "CMZ");
+    }
+
+    #[test]
+    fn it_moves_the_crates_as_crate_mover_9001() {
+        let mut cargo_crane = CargoCrane::try_from(input()).unwrap();
+        let ship_before = cargo_crane.ship();
+        assert_eq!(ship_before.crates_message_to_elves(), "NDP");
+
+        cargo_crane.execute_instructions_crate_mover_9001().unwrap();
+        let ship_after = cargo_crane.ship();
+        assert_eq!(ship_after.crates_message_to_elves(), "MCD");
     }
 
     fn input() -> &'static str {
