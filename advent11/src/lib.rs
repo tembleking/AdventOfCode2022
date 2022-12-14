@@ -136,6 +136,6 @@ mod tests {
     }
 
     fn input() -> &'static str {
-        include_str!("input.txt")
+        include_str!("example.txt")
     }
 }

@@ -1,3 +1,4 @@
+use regex::Regex;
 use std::collections::VecDeque;
 
 pub struct Monkey {
@@ -13,22 +14,43 @@ impl TryFrom<&str> for Monkey {
     type Error = String;
 
     fn try_from(input: &str) -> Result<Self, Self::Error> {
-        let mut lines_for_a_monkey = input.trim().lines().skip(1);
-        let starting_items_line = lines_for_a_monkey.next().ok_or("No starting items")?;
-        let operation_line = lines_for_a_monkey.next().ok_or("No operation")?;
-        let test_line = lines_for_a_monkey.next().ok_or("No test")?;
-        let monkey_to_throw_if_true_line = lines_for_a_monkey
-            .next()
-            .ok_or("No monkey to throw if true")?;
-        let monkey_to_throw_if_false_line = lines_for_a_monkey
-            .next()
-            .ok_or("No monkey to throw if false")?;
+        let regex = Regex::new(
+            r#"Monkey \d+:
+  Starting items: ([\d,\s]+)
+  Operation: new = (\w+) ([+\-*/]) (\w+)
+  Test: divisible by (\d+)
+    If true: throw to monkey (\d+)
+    If false: throw to monkey (\d+)"#,
+        )
+        .map_err(|e| format!("failed to create regex: {}", e))?;
+        let captures = regex.captures(input).ok_or("input does not match regex")?;
 
+        let starting_items_line = captures.get(1).ok_or("no starting items found")?.as_str();
         let starting_items = starting_items_from_str(starting_items_line)?;
-        let operation = operation_from_str(operation_line)?;
-        let test = test_from_str(test_line)?;
-        let monkey_to_throw_if_true = monkey_to_throw_from_str(monkey_to_throw_if_true_line)?;
-        let monkey_to_throw_if_false = monkey_to_throw_from_str(monkey_to_throw_if_false_line)?;
+
+        let left_operand = captures.get(2).ok_or("no left operand found")?.as_str();
+        let operator = captures.get(3).ok_or("no operator found")?.as_str();
+        let right_operand = captures.get(4).ok_or("no right operand found")?.as_str();
+        let operation = operation_from_str(left_operand, operator, right_operand)?;
+
+        let test_divisor = captures.get(5).ok_or("no test divisor found")?.as_str();
+        let test = test_from_str(test_divisor)?;
+
+        let monkey_to_throw_if_true = captures
+            .get(6)
+            .ok_or("no monkey to throw if true found")?
+            .as_str()
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| "unable to parse monkey to throw to")?;
+
+        let monkey_to_throw_if_false = captures
+            .get(7)
+            .ok_or("no monkey to throw if false found")?
+            .as_str()
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| "unable to parse monkey to throw to")?;
 
         Ok(Self {
             items: VecDeque::from(starting_items),
@@ -83,53 +105,41 @@ fn parse_monkeys_from_str(input: &str) -> Result<Vec<Monkey>, String> {
     input
         .trim()
         .split("\n\n")
-        .map(TryFrom::try_from)
+        .map(Monkey::try_from)
         .collect::<Result<Vec<Monkey>, String>>()
 }
 
 fn starting_items_from_str(starting_items_line: &str) -> Result<Vec<i64>, String> {
     let starting_items = starting_items_line
         .trim()
-        .split(':')
-        .nth(1)
-        .map(|starting_items_str| {
-            starting_items_str
-                .trim()
-                .split(',')
-                .filter_map(|item| item.trim().parse::<i64>().ok())
-        })
-        .ok_or("No starting items")?
+        .split(',')
+        .filter_map(|item| item.trim().parse::<i64>().ok())
         .collect::<Vec<_>>();
 
     Ok(starting_items)
 }
 
-fn operation_from_str(input: &str) -> Result<impl Fn(i64) -> i64, String> {
-    let operation_words = input
-        .trim()
-        .split('=')
-        .nth(1)
-        .ok_or("No operation")?
-        .trim()
-        .to_string();
+fn operation_from_str(
+    left_operand: &str,
+    operator: &str,
+    right_operand: &str,
+) -> Result<impl Fn(i64) -> i64, String> {
+    let left_operand = left_operand.to_string();
+    let operator = operator.to_string();
+    let right_operand = right_operand.to_string();
 
     let func = move |old: i64| -> i64 {
-        let mut split = operation_words.split(' ');
-        let first_operand = split.next().unwrap();
-        let first_operand = match first_operand {
+        let first_operand = match left_operand.as_str() {
             "old" => old,
-            _ => first_operand.parse::<i64>().unwrap(),
+            _ => left_operand.parse::<i64>().unwrap(),
         };
 
-        let operator = split.next().unwrap();
-
-        let second_operand = split.next().unwrap();
-        let second_operand = match second_operand {
+        let second_operand = match right_operand.as_str() {
             "old" => old,
-            _ => second_operand.parse::<i64>().unwrap(),
+            _ => right_operand.parse::<i64>().unwrap(),
         };
 
-        match operator {
+        match operator.as_str() {
             "+" => first_operand + second_operand,
             "-" => first_operand - second_operand,
             "*" => first_operand * second_operand,
@@ -142,36 +152,13 @@ fn operation_from_str(input: &str) -> Result<impl Fn(i64) -> i64, String> {
 }
 
 fn test_from_str(input: &str) -> Result<impl Fn(i64) -> bool, String> {
-    let test_words = input.trim().split(':').nth(1).ok_or("No test line")?;
-
-    let num_to_divide_str = test_words
-        .split("by")
-        .nth(1)
-        .ok_or("No number to divide and test from")?;
-
-    let num_to_divide = num_to_divide_str.trim().parse::<i64>().map_err(|e| {
-        format!(
-            "unable to parse number to divide and test from: {}",
-            num_to_divide_str
-        )
-    })?;
+    let num_to_divide = input
+        .parse::<i64>()
+        .map_err(|e| format!("failed to parse divisor: {} for input: {}", e, input))?;
 
     let func = move |num: i64| -> bool { num % num_to_divide == 0 };
 
     Ok(func)
-}
-
-fn monkey_to_throw_from_str(line: &str) -> Result<usize, String> {
-    let monkey_str = line
-        .trim()
-        .split("throw to monkey ")
-        .nth(1)
-        .ok_or("no monkey to throw to")?;
-
-    monkey_str
-        .trim()
-        .parse::<usize>()
-        .map_err(|_| format!("unable to parse monkey to throw to: {}", monkey_str))
 }
 
 #[cfg(test)]
@@ -231,6 +218,6 @@ mod tests {
     }
 
     fn input() -> &'static str {
-        include_str!("input.txt")
+        include_str!("example.txt")
     }
 }
